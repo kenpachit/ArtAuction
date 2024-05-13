@@ -1,63 +1,64 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 contract ArtAuction {
-    address payable public seller;
-    uint public auctionEndTime;
+    address payable public sellerAddress;
+    uint public auctionEndTimeStamp;
 
-    address public highestBidder;
-    uint public highestBid;
+    address public highestBidderAddress;
+    uint public highestBidAmount;
     
-    mapping(address => uint) pendingReturns;
+    mapping(address => uint) bidsToRefund;
 
-    bool ended;
+    bool auctionHasEnded;
 
-    event HighestBidIncreased(address bidder, uint amount);
-    event AuctionEnded(address winner, uint amount);
+    event NewHighestBid(address indexed bidder, uint amount);
+    event AuctionConcluded(address winner, uint amount);
 
-    constructor(uint _biddingTime, address payable _seller) {
-        seller = _seller;
-        auctionEndTime = block.timestamp + _biddingTime;
+    constructor(uint biddingDuration, address payable seller) {
+        sellerAddress = seller;
+        auctionEndTimeStamp = block.timestamp + biddingDuration;
     }
 
-    function bid() public payable {
+    function placeBid() public payable {
         require(
-            block.timestamp <= auctionEndTime,
+            block.timestamp <= auctionEndTimeStamp,
             "Auction already ended."
         );
 
         require(
-            msg.value > highestBid,
-            "There already is a higher bid."
+            msg.value > highestBidAmount,
+            "Existing higher bid."
         );
 
-        if (highestBid != 0) {
-            pendingReturns[highestBidder] += highestBid;
+        if (highestBidAmount != 0) {
+            bidsToRefund[highestBidderAddress] += highestBidAmount;
         }
-        highestBidder = msg.sender;
-        highestBid = msg.value;
-        emit HighestBidIncreased(msg.sender, msg.value);
+        highestBidderAddress = msg.sender;
+        highestBidAmount = msg.value;
+        emit NewHighestBid(msg.sender, msg.value);
     }
 
-    function withdraw() public returns (bool) {
-        uint amount = pendingReturns[msg.sender];
-        if (amount > 0) {
-            pendingReturns[msg.sender] = 0;
+    function withdrawBid() public returns (bool) {
+        uint refundAmount = bidsToRefund[msg.sender];
+        if (refundAmount > 0) {
+            bidsToRefund[msg.sender] = 0;
 
-            if (!payable(msg.sender).send(amount)) {
-                pendingReturns[msg.sender] = amount;
+            if (!payable(msg.sender).send(refundAmount)) {
+                bidsToRefund[msg.sender] = refundAmount;
                 return false;
             }
         }
         return true;
     }
 
-    function auctionEnd() public {
-        require(block.timestamp >= auctionEndTime, "Auction not yet ended.");
-        require(!ended, "auctionEnd has already been called.");
+    function concludeAuction() public {
+        require(block.timestamp >= auctionEndTimeStamp, "Auction not yet ended.");
+        require(!auctionHasEnded, "Auction has already been concluded.");
 
-        ended = true;
-        emit AuctionEnded(highestBidder, highestBid);
+        auctionHasEnded = true;
+        emit AuctionConcluded(highestBidderAddress, highestBidAmount);
 
-        seller.transfer(highestBid);
+        sellerAddress.transfer(highestBidAmount);
     }
 }
