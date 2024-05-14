@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 contract ArtAuction {
@@ -8,9 +7,9 @@ contract ArtAuction {
     address public highestBidderAddress;
     uint public highestBidAmount;
     
-    mapping(address => uint) bidsToRefund;
+    mapping(address => uint) private bidsToRefund;
 
-    bool auctionHasEnded;
+    bool private auctionHasEnded;
 
     event NewHighestBid(address indexed bidder, uint amount);
     event AuctionConcluded(address winner, uint amount);
@@ -20,26 +19,21 @@ contract ArtAuction {
         auctionEndTimeStamp = block.timestamp + biddingDuration;
     }
 
-    function placeBid() public payable {
-        require(
-            block.timestamp <= auctionEndTimeStamp,
-            "Auction already ended."
-        );
-
-        require(
-            msg.value > highestBidAmount,
-            "Existing higher bid."
-        );
+    function placeBid() external payable {
+        require(block.timestamp <= auctionEndTimeStamp, "Auction already ended.");
+        require(msg.value > highestBidAmount, "Existing higher bid.");
 
         if (highestBidAmount != 0) {
             bidsToRefund[highestBidderAddress] += highestBidAmount;
         }
+
         highestBidderAddress = msg.sender;
         highestBidAmount = msg.value;
+
         emit NewHighestBid(msg.sender, msg.value);
     }
 
-    function withdrawBid() public returns (bool) {
+    function withdrawBid() external returns (bool success) {
         uint refundAmount = bidsToRefund[msg.sender];
         if (refundAmount > 0) {
             bidsToRefund[msg.sender] = 0;
@@ -52,7 +46,7 @@ contract ArtAuction {
         return true;
     }
 
-    function concludeAuction() public {
+    function concludeAuction() external {
         require(block.timestamp >= auctionEndTimeStamp, "Auction not yet ended.");
         require(!auctionHasEnded, "Auction has already been concluded.");
 
