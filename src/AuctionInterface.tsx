@@ -6,78 +6,78 @@ const CONTRACT_ABI: AbiItem[] = JSON.parse(process.env.REACT_APP_CONTRACT_ABI ||
 const CONTRACT_ADDRESS = process.env.REACT_APP_CONTRACT_ADDRESS;
 
 const AuctionInterface: React.FC = () => {
-  const [web3, setWeb3] = useState<Web3 | null>(null);
-  const [contract, setContract] = useState<any>(null);
+  const [web3Instance, setWeb3Instance] = useState<Web3 | null>(null);
+  const [auctionContract, setAuctionContract] = useState<any>(null);
   const [highestBid, setHighestBid] = useState<number>(0);
   const [artworkDetails, setArtworkDetails] = useState<string>('');
   const [bidAmount, setBidAmount] = useState<string>('0');
 
   useEffect(() => {
-    const initWeb3 = async () => {
-      if (web3 || !window.ethereum) {
+    const initializeWeb3AndContract = async () => {
+      if (web3Instance || !window.ethereum) {
         console.log('Web3 instance already initialized or Non-Ethereum browser detected.');
         return;
       }
       try {
         await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const web3Instance = new Web3(window.ethereum);
-        setWeb3(web3Instance);
-        const contractInstance = new web3Instance.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
-        setContract(contractInstance);
+        const web3 = new Web3(window.ethereum);
+        setWeb3Instance(web3);
+        const contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+        setAuctionContract(contract);
       } catch (error) {
         console.error('Ethereum request failed:', error);
       }
     };
-    initWeb3();
-  }, [web3]);
+    initializeWeb3AndContract();
+  }, [web3Instance]);
 
-  const fetchAuctionDetails = useCallback(() => {
-    if (!contract) return;
-    contract.methods.currentHighestBid().call()
+  const loadAuctionData = useCallback(() => {
+    if (!auctionContract) return;
+    auctionContract.methods.currentHighestBid().call()
       .then((result: number) => {
         setHighestBid(result);
       }).catch((error: any) => {
         console.error('Failed to fetch highest bid:', error);
       });
 
-    contract.methods.artworkDetails().call()
+    auctionContract.methods.artworkDetails().call()
       .then((result: string) => {
         setArtworkDetails(result);
       }).catch((error: any) => {
         console.error('Failed to fetch artwork details:', error);
       });
-  }, [contract]);
+  }, [auctionContract]);
 
   useEffect(() => {
-    fetchAuctionDetails();
-  }, [fetchAuctionDetails]);
+    loadAuctionData();
+  }, [loadAuctionData]);
 
   useEffect(() => {
-    const newHighestBidListener = () => {
-      fetchAuctionDetails();
+    const updateOnNewHighestBid = () => {
+      loadAuctionData();
     };
 
-    if (contract) {
-      contract.events.NewHighestBid({}, newHighestBidListener);
+    if (auctionContract) {
+      auctionContract.events.NewHighestBid({}, updateOnNewHighestBid);
       return () => {
-        contract.events.NewHighestBid().unsubscribe(newHighestBidListener);
+        auctionContract.events.NewHighestBid().unsubscribe(updateOnNewHighestBid);
       };
     }
-  }, [contract, fetchAuctionDetails]);
+  }, [auctionContract, loadAuctionData]);
 
-  const submitBid = async () => {
-    if (!web3 || !contract) {
+  const placeBid = async () => {
+    if (!web3Instance || !auctionContract) {
       console.log('Web3 or contract not initialized');
       return;
     }
-    const accounts = await web3.eth.getAccounts();
-    const weiValue = web3.utils.toWei(bidAmount, 'ether');
-    contract.methods.bid().send({ from: accounts[0], value: weiValue })
+    const accounts = await web3Instance.eth.getAccounts();
+    const weiValue = web3Instance.utils.toWei(bidAmount, 'ether');
+    auctionContract.methods.bid().send({ from: accounts[0], value: weiValue })
       .then(() => {
-        console.log('Bid successfully submitted');
+        console.log('Bid successfully placed');
       })
       .catch((error: any) => {
-        console.error('Bid submission failed:', error);
+        console.error('Bid placement failed:', error);
       });
   };
 
@@ -90,9 +90,9 @@ const AuctionInterface: React.FC = () => {
         type="number"
         value={bidAmount}
         onChange={(e) => setBidAmount(e.target.value)}
-        placeholder="Bid Amount in ETH"
+        placeholder="Enter Bid Amount in ETH"
       />
-      <button onClick={submitBid}>Submit Bid</button>
+      <button onClick={placeBid}>Place Bid</button>
     </div>
   );
 };
