@@ -33,17 +33,13 @@ contract ArtAuction {
         emit NewHighestBid(msg.sender, msg.value);
     }
 
-    function withdrawBid() external returns (bool success) {
+    function withdrawBid() external {
         uint refundAmount = bidsToRefund[msg.sender];
-        if (refundAmount > 0) {
-            bidsToRefund[msg.sender] = 0;
+        require(refundAmount > 0, "No funds to withdraw.");
 
-            if (!payable(msg.sender).send(refundAmount)) {
-                bidsToRefund[msg.sender] = refundAmount;
-                return false;
-            }
-        }
-        return true;
+        bidsToRefund[msg.sender] = 0;
+        (bool sent, ) = msg.sender.call{value: refundAmount}("");
+        require(sent, "Failed to send Ether");
     }
 
     function concludeAuction() external {
@@ -52,7 +48,11 @@ contract ArtAuction {
 
         auctionHasEnded = true;
         emit AuctionConcluded(highestBidderAddress, highestBidAmount);
-
-        sellerAddress.transfer(highestBidAmount);
+        safeTransferToSeller();
+    }
+    
+    function safeTransferToSeller() private {
+        (bool sent, ) = sellerAddress.call{value: highestBidAmount}("");
+        require(sent, "Failed to send Ether to seller.");
     }
 }
