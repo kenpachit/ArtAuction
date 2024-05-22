@@ -51,6 +51,21 @@ const useAuction = () => {
   }, [account, auctionContract, web3.utils]);
 
   useEffect(() => {
+    const connectAndFetchInitialData = async () => {
+      try {
+        if (window.ethereum) {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          setAccount(accounts[0]);
+        }
+        // Assuming getAuctionData does not depend on knowing the user's account
+        await fetchAuctionData();
+      } catch (initialError) {
+        setError(initialError as Error);
+      }
+    };
+
+    connectAndFetchInitialData();
+    
     if (auctionContract) {
       const bidEvent = auctionContract.events.BidPlaced({
         filter: {}, fromBlock: 'latest'
