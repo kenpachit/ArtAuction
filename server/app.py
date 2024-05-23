@@ -1,15 +1,16 @@
+from functools import lru_cache
+
 from flask import Flask, jsonify, request
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import sqlite3
-
 from dotenv import load_dotenv
+from functools import lru_cache
+
 load_dotenv()
 
 app = Flask(__name__)
-
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-
 DATABASE = 'database.db'
 
 def get_db_connection():
@@ -22,7 +23,6 @@ def register():
     data = request.json
     username = data['username']
     password = data['password']
-    
     password_hash = generate_password_hash(password)
     
     conn = get_db_connection()
@@ -59,8 +59,8 @@ def get_auction(auction_id):
         return jsonify({'message': 'Auction not found'}), 404
 
 @app.route('/external-art', methods=['GET'])
+@lru_cache(maxsize=32)
 def get_external_art():
-    
     return jsonify({
         'gallery': 'External Art Gallery',
         'artworks': [
