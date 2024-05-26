@@ -3,87 +3,89 @@ import Web3 from 'web3';
 import AuctionContractABI from './AuctionContractABI.json';
 
 const useAuction = () => {
-  const web3 = new Web3(Web3.givenProvider || process.env.REACT_APP_INFURA_URL);
-  const auctionContractAddress = process.env.REACT_APP_AUCTION_CONTRACT_ADDRESS;
-  const auctionContract = new web3.eth.Contract(AuctionContractABI, auctionContractAddress);
+  const web3Instance = new Web3(Web3.givenProvider || process.env.REACT_APP_INFURA_URL);
+  const auctionContractAddr = process.env.REACT_APP_AUCTION_CONTRACT_ADDRESS;
+  const auctionContract = new web3Instance.eth.Contract(AuctionContractABI, auctionContractAddr);
   
-  const [account, setAccount] = useState<string | null>(null);
-  const [auctionData, setAuctionData] = useState<any>(null);
-  const [loadingData, setLoadingData] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [userAccount, setUserAccount] = useState<string | null>(null);
+  const [auctionDetails, setAuctionDetails] = useState<any>(null);
+  const [isFetchingData, setIsFetchingData] = useState<boolean>(false);
+  const [operationError, setOperationError] = useState<Error | null>(null);
 
-  const connectWallet = useCallback(async () => {
+  const handleConnectWallet = useCallback(async () => {
     if (window.ethereum) {
       try {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setAccount(accounts[0]);
+        setUserAccount(accounts[0]);
       } catch (error) {
-        setError(error as Error);
+        setOperationError(error as Error);
       }
     } else {
-      setError(new Error('Ethereum wallet is not available'));
+      setOperationError(new Error('Ethereum wallet is not available'));
     }
   }, []);
 
-  const fetchAuctionData = useCallback(async () => {
+  const retrieveAuctionDetails = useCallback(async () => {
     if (auctionContract) {
-      setLoadingData(true);
+      setIsFetchingData(true);
       try {
         const data = await auctionContract.methods.getAuctionData().call();
-        setAuctionData(data);
+        setAuctionDetails(data);
       } catch (error) {
-        setError(error as Error);
+        setOperationError(error as Error);
       } finally {
-        setLoadingData(false);
+        setIsFetchingData(false);
       }
     }
   }, [auctionContract]);
 
-  const submitBid = useCallback(async (amount: number) => {
-    if (account && auctionContract) {
-      const bidAmount = web3.utils.toWei(amount.toString(), 'ether');
+  const placeBid = useCallback(async (bidAmountEther: number) => {
+    if (userAccount && auctionContract) {
+      const bidAmountWei = web3Instance.utils.toWei(bidAmountEther.toString(), 'ether');
       try {
-        await auctionContract.methods.bid().send({ from: account, value: bidAmount });
+        await auctionContract.methods.bid().send({ from: userAccount, value: bidAmountWei });
       } catch (error) {
-        setError(error as Error);
+        setOperationError(error as Error);
       }
     }
-  }, [account, auctionContract, web3.utils]);
+  }, [userAccount, auctionContract, web3Instance.utils]);
 
   useEffect(() => {
-    const connectAndFetchInitialData = async () => {
+    const initWalletConnectionAndFetchAuction = async () => {
       try {
         if (window.ethereum) {
           const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-          setAccount(accounts[0]);
+          setUserAccount(accounts[0]);
         }
-        // Assuming getAuctionData does not depend on knowing the user's account
-        await fetchAuctionData();
+        // Fetch auction details without needing the user's account
+        await retrieveAuctionDetails();
       } catch (initialError) {
-        setError(initialError as Error);
+        setOperationError(initialError as Error);
       }
     };
 
-    connectAndFetchInitialData();
+    initWalletConnectionAndFetchAuction();
     
     if (auctionContract) {
-      const bidEvent = auctionContract.events.BidPlaced({
+      const onBidPlaced = auctionContract.events.BidPlaced({
         filter: {}, fromBlock: 'latest'
       }, (error, event) => {
         if (error) {
-          setError(error);
+          setOperationError(error);
         } else if (event) {
-          fetchAuctionData();
+          retrieveAuctionDetails();
         }
       });
 
       return () => {
-        bidEvent.unsubscribe();
+        if (onBidPlaced.unsubscribe) {
+          onBidPlaced.unsubscribe();
+        }
       };
     }
-  }, [auctionContract, fetchAuctionData]);
+  }, [auctionContract, retrieveAuctionDetails]);
 
-  return { connectWallet, auctionData, submitBid, loadingData, error };
+  return { handleConnectWallet, auctionDetails, placeBid, isFetchingData, operationError };
 };
 
 export default useAuction;
