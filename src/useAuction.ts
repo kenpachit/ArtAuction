@@ -6,7 +6,7 @@ const useAuction = () => {
   const web3Instance = new Web3(Web3.givenProvider || process.env.REACT_APP_INFURA_URL);
   const auctionContractAddr = process.env.REACT_APP_AUCTION_CONTRACT_ADDRESS;
   const auctionContract = new web3Instance.eth.Contract(AuctionContractABI, auctionContractAddr);
-  
+
   const [userAccount, setUserAccount] = useState<string | null>(null);
   const [auctionDetails, setAuctionDetails] = useState<any>(null);
   const [isFetchingData, setIsFetchingData] = useState<boolean>(false);
@@ -51,21 +51,16 @@ const useAuction = () => {
   }, [userAccount, auctionContract, web3Instance.utils]);
 
   useEffect(() => {
-    const initWalletConnectionAndFetchAuction = async () => {
-      try {
-        if (window.ethereum) {
-          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-          setUserAccount(accounts[0]);
-        }
-        // Fetch auction details without needing the user's account
-        await retrieveAuctionDetails();
-      } catch (initialError) {
-        setOperationError(initialError as Error);
+    const initWalletConnectionAndFetchAuctionDetails = async () => {
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        setUserAccount(accounts[0]);
       }
+      await retrieveAuctionDetails();
     };
 
-    initWalletConnectionAndFetchAuction();
-    
+    initWalletConnectionAndFetchAuctionDetails();
+
     if (auctionContract) {
       const onBidPlaced = auctionContract.events.BidPlaced({
         filter: {}, fromBlock: 'latest'
@@ -85,7 +80,13 @@ const useAuction = () => {
     }
   }, [auctionContract, retrieveAuctionDetails]);
 
-  return { handleConnectWallet, auctionDetails, placeBid, isFetchingData, operationError };
+  return {
+    handleConnectWallet,
+    auctionDetails,
+    placeBid,
+    isFetchingData,
+    operationError
+  };
 };
 
 export default useAuction;
