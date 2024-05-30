@@ -12,18 +12,25 @@ const useAuction = () => {
   const [isFetchingData, setIsFetchingData] = useState<boolean>(false);
   const [operationError, setOperationError] = useState<Error | null>(null);
 
-  const handleConnectWallet = useCallback(async () => {
+  const connectWallet = useCallback(async () => {
     if (window.ethereum) {
       try {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setUserAccount(accounts[0]);
+        return accounts[0];
       } catch (error) {
         setOperationError(error as Error);
+        return null;
       }
     } else {
       setOperationError(new Error('Ethereum wallet is not available'));
+      return null;
     }
   }, []);
+
+  const handleConnectWallet = useCallback(async () => {
+    const account = await connectWallet();
+    if (account) setUserAccount(account);
+  }, [connectWallet]);
 
   const retrieveAuctionDetails = useCallback(async () => {
     if (auctionContract) {
@@ -51,34 +58,38 @@ const useAuction = () => {
   }, [userAccount, auctionContract, web3Instance.utils]);
 
   useEffect(() => {
-    const initWalletConnectionAndFetchAuctionDetails = async () => {
-      if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setUserAccount(accounts[0]);
+    const init = async () => {
+      if (!userAccount) {
+        await handleConnectWallet();
       }
       await retrieveAuctionDetails();
     };
 
-    initWalletConnectionAndFetchAuctionDetails();
+    init();
 
-    if (auctionContract) {
-      const onBidPlaced = auctionContract.events.BidPlaced({
-        filter: {}, fromBlock: 'latest'
-      }, (error, event) => {
-        if (error) {
-          setOperationError(error);
-        } else if (event) {
-          retrieveAuctionDetails();
-        }
-      });
+    // Listen for BidPlaced event to refresh auction details
+    const subscribeToBidPlacedEvent = () => {
+      if (auctionContract) {
+        const onBidPlaced = auctionContract.events.BidPlaced({
+          filter: {}, fromBlock: 'latest'
+        }, (error, event) => {
+          if (error) {
+            setOperationError(error);
+          } else if (event) {
+            retrieveAuctionDetails();
+          }
+        });
 
-      return () => {
-        if (onBidPlaced.unsubscribe) {
-          onBidPlaced.unsubscribe();
-        }
-      };
-    }
-  }, [auctionContract, retrieveAuctionDetails]);
+        return () => {
+          if (onBidPlaced.unsubscribe) {
+            onBidPlaced.unsubscribe();
+          }
+        };
+      }
+    };
+
+    return subscribeToBidPlacedEvent();
+  }, [userAccount, auctionContract, handleConnectWallet, retrieveAuctionDetails]);
 
   return {
     handleConnectWallet,
