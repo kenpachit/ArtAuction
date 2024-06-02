@@ -9,9 +9,7 @@ dotenv.config();
 
 describe('Auction Contract and Component Tests', function () {
   let auction: Contract;
-  let deployer: Signer;
-  let participant: Signer;
-  let anotherParticipant: Signer;
+  let deployer: Signer, participant: Signer, anotherParticipant: Signer;
 
   before(async function () {
     [deployer, participant, anotherParticipant] = await ethers.getSigners();
@@ -22,24 +20,24 @@ describe('Auction Contract and Component Tests', function () {
 
   describe('Solidity Auction Contract', function () {
     it('Allows deployment and starts in a non-ended state', async function () {
-      assert.isFalse(await auction.hasEnded(), 'Auction should not be ended immediately after deployment');
+      assert.isFalse(await auction.hasEnded(), 'Auction should not be ended after deployment');
     });
 
     it('Allows bids and tracks the highest bidder', async function () {
       const bidAmount = ethers.utils.parseEther('1');
       await auction.connect(participant).placeBid({ value: bidAmount });
-
       const highestBidder = await auction.highestBidder();
-      assert.equal(await participant.getAddress(), highestBidder, 'Participant should be the highest bidder');
+
+      assert.strictEqual(await participant.getAddress(), highestBidder, 'Participant should be the highest bidder');
     });
 
     it('Rejects bids lower than the highest bid', async function () {
       const lowBidAmount = ethers.utils.parseEther('0.5');
       try {
         await auction.connect(anotherParticipant).placeBid({ value: lowBidAmount });
-        assert.fail('Bid should have been rejected');
+        assert.fail('Low bid was not rejected');
       } catch (error) {
-        assert.include(error.message, 'Bid too low', 'Should reject low bids');
+        assert.include(error.message, 'Bid too low', 'Low bids should be rejected');
       }
     });
   });
@@ -47,9 +45,7 @@ describe('Auction Contract and Component Tests', function () {
   describe('React Auction Component', function () {
     it('Renders and displays initial state correctly', async () => {
       const { getByText } = render(<AuctionComponent contract={auction} account={await deployer.getAddress()} />);
-      await waitFor(() => {
-        assert.exists(getByText(/Current highest bid:/), 'Should display the text for current highest bid');
-      });
+      assert.exists(await waitFor(() => getByText(/Current highest bid:/)), 'Initial text for current highest bid should be displayed');
     });
 
     it('Updates UI after placing a bid', async () => {
@@ -58,9 +54,7 @@ describe('Auction Contract and Component Tests', function () {
       fireEvent.change(getByTestId('bid-input'), { target: { value: bidAmount } });
       fireEvent.click(getByTestId('bid-button'));
 
-      await waitFor(() => {
-        assert.exists(getByText(new RegExp(`Highest bid is now ${bidAmount} ETH`)), 'UI should update the highest bid');
-      });
+      assert.exists(await waitFor(() => getByText(new RegExp(`Highest bid is now ${bidAmount} ETH`))), 'UI should update with the highest bid.');
     });
   });
 });
