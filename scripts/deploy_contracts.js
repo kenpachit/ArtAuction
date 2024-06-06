@@ -5,14 +5,14 @@ require('dotenv').config();
 
 const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_URL));
 
-const contractPath = './ArtAuction.sol';
-const source = fs.readFileSync(contractPath, 'utf8');
+const auctionContractPath = './ArtAuction.sol';
+const auctionSourceCode = fs.readFileSync(auctionContractPath, 'utf8');
 
-const input = {
+const compilerInput = {
   language: 'Solidity',
   sources: {
     'ArtAuction.sol': {
-      content: source,
+      content: auctionSourceCode,
     },
   },
   settings: {
@@ -24,34 +24,34 @@ const input = {
   },
 };
 
-const output = JSON.parse(solc.compile(JSON.stringify(input)));
+const compilationOutput = JSON.parse(solc.compile(JSON.stringify(compilerInput)));
 
-const contractFile = output.contracts['ArtAuction.sol']['ArtAuction'];
-const abi = contractFile.abi;
-const bytecode = contractFile.evm.bytecode.object;
+const auctionContractMetaData = compilationOutput.contracts['ArtAuction.sol']['ArtAuction'];
+const auctionAbi = auctionContractMetaData.abi;
+const auctionBytecode = auctionContractMetaData.evm.bytecode.object;
 
-const contract = new web3.eth.Contract(abi);
+const auctionContract = new web3.eth.Contract(auctionAbi);
 
-const deployContract = async () => {
+const deployAuctionContract = async () => {
   try {
-    const accounts = await web3.eth.getAccounts();
+    const ethAccounts = await web3.eth.getAccounts();
 
-    const result = await contract
+    const deploymentResult = await auctionContract
       .deploy({
-        data: bytecode,
+        data: auctionBytecode,
       })
       .send({
-        from: accounts[0],
+        from: ethAccounts[0],
         gas: '4700000',
       });
 
-    console.log('Contract deployed to:', result.options.address);
+    console.log('Auction Contract deployed to:', deploymentResult.options.address);
 
-    const isCodePresent = await web3.eth.getCode(result.options.address);
-    console.log('Contract functioning:', isCodePresent !== '0x');
+    const deployedCode = await web3.eth.getCode(deploymentResult.options.address);
+    console.log('Auction Contract functioning:', deployedCode !== '0x');
   } catch (error) {
-    console.error('Deployment failed:', error);
+    console.error('Auction Contract deployment failed:', error);
   }
 };
 
-deployPlatform().then(() => process.exit());
+deployAuctionContract().then(() => process.exit());
