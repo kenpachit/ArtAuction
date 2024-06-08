@@ -3,55 +3,74 @@ const solc = require('solc');
 const fs = require('fs');
 require('dotenv').config();
 
-const web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_URL));
+let web3 = new Web3(new Web3.providers.HttpProvider(process.env.INFURA_URL));
+let auctionContractPath = './ArtAuction.sol';
+let auctionSourceCode;
+let compilationOutput;
+let auctionContractMetaData;
+let auctionAbi;
+let auctionBytecode;
+let auctionContract;
 
-const auctionContractPath = './ArtAuction.sol';
-const auctionSourceCode = fs.readFileSync(auctionContractPath, 'utf8');
+try {
+    auctionSourceCode = fs.readFileSync(auctionContractPath, 'utf8');
+} catch (error) {
+    console.error("Error reading Solidity source file:", error);
+    process.exit(1); // Exit if source file can't be read
+}
 
-const compilerInput = {
-  language: 'Solidity',
-  sources: {
-    'ArtAuction.sol': {
-      content: auctionSourceCode,
+try {
+    const compilerInput = {
+    language: 'Solidity',
+    sources: {
+        'ArtAuction.sol': {
+        content: auctionSourceCode,
+        },
     },
-  },
-  settings: {
-    outputSelection: {
-      '*': {
-        '*': ['*'],
-      },
+    settings: {
+        outputSelection: {
+        '*': {
+            '*': ['*'],
+        },
+        },
     },
-  },
-};
+    };
 
-const compilationOutput = JSON.parse(solc.compile(JSON.stringify(compilerInput)));
+    compilationOutput = JSON.parse(solc.compile(JSON.stringify(compilerInput)));
+    auctionContractMetaData = compilationOutput.contracts['ArtAuction.sol']['ArtAuction'];
+    auctionAbi = auctionContractMetaData.abi;
+    auctionBytecode = auctionContractMetaData.evm.bytecode.object;
 
-const auctionContractMetaData = compilationOutput.contracts['ArtAuction.sol']['ArtAuction'];
-const auctionAbi = auctionContractMetaData.abi;
-const auctionBytecode = auctionContractMetaData.evm.bytecode.object;
-
-const auctionContract = new web3.eth.Contract(auctionAbi);
+    auctionContract = new web3.eth.Contract(auctionAbi);
+} catch (error) {
+    console.error("Compilation error:", error);
+    process.exit(1); // Exit if there's a compilation error
+}
 
 const deployAuctionContract = async () => {
-  try {
+    try {
     const ethAccounts = await web3.eth.getAccounts();
 
     const deploymentResult = await auctionContract
-      .deploy({
+        .deploy({
         data: auctionBytecode,
-      })
-      .send({
+        })
+        .send({
         from: ethAccounts[0],
         gas: '4700000',
-      });
+        });
 
     console.log('Auction Contract deployed to:', deploymentResult.options.address);
 
-    const deployedCode = await web3.eth.getCode(deploymentResult.options.address);
-    console.log('Auction Contract functioning:', deployedCode !== '0x');
-  } catch (error) {
+    try {
+        const deployedCode = await web3.eth.getCode(deploymentResult.options.address);
+        console.log('Auction Contract functioning:', deployedCode !== '0x');
+    } catch (error) {
+        throw new Error(`Error verifying the deployment: ${error}`);
+    }
+    } catch (error) {
     console.error('Auction Contract deployment failed:', error);
-  }
+    }
 };
 
 deployAuctionContract().then(() => process.exit());
